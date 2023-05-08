@@ -1,7 +1,7 @@
 const { ObjectId } = require('mongoose');
 const mongoose=require('mongoose');
 
-const ChatSchema = mongoose.Schema(
+const ConversationSchema = mongoose.Schema(
     {
         id: {
             type : String,
@@ -37,4 +37,4 @@ const ChatSchema = mongoose.Schema(
     }
 );
 
-module.exports=mongoose.model('Conversations',ChatSchema);
+module.exports=mongoose.model('Conversations',ConversationSchema);
