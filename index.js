@@ -18,48 +18,68 @@ const Conversations = require('./Models/Conversations.js');
 mongoose.connect(process.env.DB_CONNECTION,{ useNewUrlParser: true , useUnifiedTopology: true });
 app.use(cors());
 app.use(bodyParser.json());
+/*
+admin joins the chatbot room
+admin listens on the chatbot room 
+admin sends message to client with conversation id (not chatbot room)
 
-let Rooms=[];
 
+client joins conversation id room
+client sends messages on the chatbot room
+client listens on conversation id room (not chatbot room)
+*/
 io.on('connection', (socket) => {
     console.log('a user connected');
-    socket.on('create', function(room) {
-      console.log("room :"+room);
+    socket.on('create', async function(room) {
+      if(room.type === "client") {
+        let conv = await Conversations.findOne({"email":room.email,"Name":room.name})
+        //console.log(conv._id);
+        if (conv._id){
+          socket.join(conv._id.toString());
+        } else {
+          //new conversation
+        }
+        
+      } else if (room.type === "admin") {
+        console.log("admin joined its own room :" + room.chatId);
+        socket.join(room.chatId);
+      } else {
+        console.log("no room selected")
+      }
+      
       //change room id to conversation id
-      socket.join(room);
+      
     });
-    socket.on('clientEmit', function(chat) {
+    socket.on('clientEmit', async function(chat) {
       console.log('client Emit');
-      console.log(chat.message);
       //console.log(chat.email);
       //console.log(chat.name);
-      //console.log(chat.chatID);
       //brodcast new massage
       //{ chatID : chatID ,message: 'azeaze', email: '', name: '' }
-      socket.to(chat.chatID).emit('clientMessage', {message:chat.message,email:chat.email,name:chat.name});
+      
       //save to DB
       try {
-        //saveClientMessage(chat.message,chat.chatID,chat.email,chat.name);
+        //save to db
+        r = await saveClientMessage(chat.message,chat.chatID,chat.email,chat.name);
+        //emit to admin
+        socket.to(chat.chatID).emit('clientMessage', r);
       } catch(e) {
-        console.log("could not save message")
+        console.log(e)
+        console.log("clientEmit:could not save message")
       }
       
     });
-    socket.on('AdminEmit', function(chat) {
+    socket.on('AdminEmit', async function(chat) {
       console.log('AdminEmit');
-      console.log(chat);
-      /*console.log(chat.ConversationId);
-      console.log(chat.email);
-      console.log(chat.LastName);
-      console.log(chat.FirstName);*/
-      //brodcast new massage
-      //{ chatID : chatID ,message: 'azeaze', email: '', name: '' }
-      socket.to(chat.chatID).emit('AdminMessage', {message:chat.message,email:chat.email,name:chat.name});
-      //save to DB
       try {
-        //saveAdminMessage(chat.message,chat.chatID,chat.email,chat.name);
+        //save to DB
+        //r = await saveAdminMessage(chat.message,chat.chatID,chat.email,chat.name);
+        //emit to client on ConversationId
+        //socket.join(chat.ConversationId);
+        socket.to(chat.ConversationId).emit('AdminMessage', chat.Message);
       } catch(e) {
-        console.log("could not save message")
+        console.log(e)
+        console.log("AdminEmit:could not save message")
       }
       
     });
@@ -77,7 +97,8 @@ async function saveClientMessage(message,chatID,email,name) {
   if (conv.length > 0) {
     //console.log(conv ," conv");
     conv[0].texts.push({_id:new mongoose.Types.ObjectId(),message:message,email:email,name:name,owner:"client",seen:false,timestamp:Math.floor(Date.now() / 1000)})
-    await conv[0].save({ timestamps: { createdAt: true, updatedAt: false } });
+    r = await conv[0].save({ timestamps: { createdAt: true, updatedAt: false } });
+    return r;
   } else {
     //new conversation
     //console.log(conv ," new conversation");
@@ -86,10 +107,12 @@ async function saveClientMessage(message,chatID,email,name) {
     Nconv.email=email;
     Nconv.ParentChatId=chatID;
     Nconv.texts.push({_id:new mongoose.Types.ObjectId(),message:message,email:email,name:name,seen:false,timestamp:Math.floor(Date.now() / 1000)})
-    await Nconv.save({ timestamps: { createdAt: true, updatedAt: false } });
-    let x = await Chat.findById(chatID);
+    r = await Nconv.save({ timestamps: { createdAt: true, updatedAt: false } });
+    
+    x = await Chat.findById(chatID);
     x.messages.push({_id:Nconv._id,message:message,email:email,name:name,owner:"client",seen:false,timestamp:Math.floor(Date.now() / 1000)})
     await x.save({ timestamps: { createdAt: true, updatedAt: false } });
+    return r;
   }
   
 }
@@ -100,7 +123,8 @@ async function saveAdminMessage(message,chatID,email,name) {
   if (conv.length > 0) {
     //console.log(conv ," conv");
     conv[0].texts.push({_id:new mongoose.Types.ObjectId(),message:message,email:email,name:name,owner:"client",seen:false,timestamp:Math.floor(Date.now() / 1000)})
-    await conv[0].save({ timestamps: { createdAt: true, updatedAt: false } });
+    r = await conv[0].save({ timestamps: { createdAt: true, updatedAt: false } });
+    return r;
   } else {
     //new conversation
     //console.log(conv ," new conversation");
@@ -109,9 +133,10 @@ async function saveAdminMessage(message,chatID,email,name) {
     Nconv.email=email;
     Nconv.ParentChatId=chatID;
     Nconv.texts.push({_id:new mongoose.Types.ObjectId(),message:message,email:email,name:name,seen:false,timestamp:Math.floor(Date.now() / 1000)})
-    await Nconv.save({ timestamps: { createdAt: true, updatedAt: false } });
-    let x = await Chat.findById(chatID);
+    r=await Nconv.save({ timestamps: { createdAt: true, updatedAt: false } });
+    x = await Chat.findById(chatID);
     x.messages.push({_id:Nconv._id,message:message,email:email,name:name,owner:"client",seen:false,timestamp:Math.floor(Date.now() / 1000)})
     await x.save({ timestamps: { createdAt: true, updatedAt: false } });
+    return r;
   }
 }
