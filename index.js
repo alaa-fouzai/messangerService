@@ -76,9 +76,9 @@ io.on('connection', (socket) => {
         console.log(chat)
         r = await saveAdminMessage(chat.message,chat.ConversationId,chat.email,chat.FirstName+" "+chat.LastName,chat.chatId);
         console.log("r");
-        console.log(r);
+        //console.log(r);
         //emit to client on ConversationId
-        socket.to(chat.ConversationId).emit('AdminMessage', {msg :chat.Message,time:123123123});
+        socket.to(chat.ConversationId).emit('AdminMessage', { message :chat.message , time:Math.floor(Date.now() / 1000), owner : "Admin",name:chat.FirstName+" "+chat.LastName});
       } catch(e) {
         console.log(e)
         console.log("AdminEmit:could not save message")
