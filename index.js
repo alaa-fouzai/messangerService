@@ -35,7 +35,8 @@ io.on('connection', (socket) => {
       if(room.type === "client") {
         console.log('client connected');
         let conv = await Conversations.findOne({"email":room.email,"Name":room.name})
-        if (conv !== null){
+        // console.log(conv);
+        if (conv._id !== null){
           socket.join(conv._id.toString());
         } else {
           //new conversation
@@ -85,14 +86,15 @@ io.on('connection', (socket) => {
       
     });
     socket.on('AdminEmit', async function(chat) {
-
       try {
         //save to DB
-        console.log(chat.Message)
-        r = await saveAdminMessage(chat.Message,chat.ConversationId,chat.email,chat.FirstName);
+        console.log("chat")
+        console.log(chat)
+        r = await saveAdminMessage(chat.message,chat.ConversationId,chat.email,chat.FirstName+" "+chat.LastName,chat.chatId);
+        console.log("r");
+        //console.log(r);
         //emit to client on ConversationId
-        //socket.join(chat.ConversationId);
-        socket.to(chat.ConversationId).emit('AdminMessage', chat.Message);
+        socket.to(chat.ConversationId).emit('AdminMessage', { message :chat.message , time:Math.floor(Date.now() / 1000), owner : "Admin",name:chat.FirstName+" "+chat.LastName});
       } catch(e) {
         console.log(e)
         console.log("AdminEmit:could not save message")
@@ -108,7 +110,6 @@ server.listen(4000, () => {
 
 async function saveClientMessage(message,chatID,email,name) {
   //let c = await Chat.findById(chatID);
-  //console.log(chatID);
   let conv = await Conversations.find({"ParentChatId": chatID,"email":email,"Name":name})
   if (conv.length > 0) {
     //console.log(conv ," conv");
@@ -132,14 +133,28 @@ async function saveClientMessage(message,chatID,email,name) {
   }
   
 }
-async function saveAdminMessage(message,chatID,email,name) {
-  let conv = await Conversations.findOne({_id:chatID})
-  //console.log(conv);
-  if (conv._id) {
-    conv.texts.push({_id:new mongoose.Types.ObjectId(),message:message,email:email,name:name,owner:"admin",seen:false,timestamp:Math.floor(Date.now() / 1000)})
-    r = await conv.save({ timestamps: { createdAt: true, updatedAt: false } });
+async function saveAdminMessage(message,ConversationId,email,name,chatID) {
+  //let c = await Chat.findById(chatID);
+  console.log(message,ConversationId,email,name,chatID);
+  let conv = await Conversations.find({"_id":ConversationId});
+  console.log(conv);
+  if (conv.length > 0) {
+    //console.log(conv ," conv");
+    conv[0].texts.push({_id:new mongoose.Types.ObjectId(),message:message,email:email,name:name,owner:"Admin",seen:false,timestamp:Math.floor(Date.now() / 1000)})
+    r = await conv[0].save({ timestamps: { createdAt: true, updatedAt: false } });
     return r;
   } else {
-    return 0;
+    //new conversation
+    //console.log(conv ," new conversation");
+    let Nconv = new Conversations();
+    Nconv.Name=name;
+    Nconv.email=email;
+    Nconv.ParentChatId=chatID;
+    Nconv.texts.push({_id:new mongoose.Types.ObjectId(),message:message,email:email,name:name,seen:false,timestamp:Math.floor(Date.now() / 1000)})
+    r=await Nconv.save({ timestamps: { createdAt: true, updatedAt: false } });
+    x = await Chat.findById(chatID);
+    x.messages.push({_id:Nconv._id,message:message,email:email,name:name,owner:"Admin",seen:false,timestamp:Math.floor(Date.now() / 1000)})
+    await x.save({ timestamps: { createdAt: true, updatedAt: false } });
+    return r;
   }
 }
